@@ -5,6 +5,7 @@ from hashlib import md5
 import base64
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
+from Crypto.Util.Padding import pad, unpad
 import requests
 import pytz
 from flask import Flask, request, render_template, session, redirect, url_for, jsonify, abort
@@ -21,6 +22,8 @@ from whisper import get_audio, speech_to_text
 from voice import convert_audio_to_m4a, text_to_speech, send_audio_to_line, delete_local_file, set_bucket_lifecycle, send_audio_to_line_reply
 from payment import create_checkout_session
 from quickreply import create_quick_reply
+
+BLOCK_SIZE = 16  # AES block size is 128-bit (16 bytes)
 
 REQUIRED_ENV_VARS = [
     "BOT_NAME",
@@ -447,21 +450,17 @@ def systemRole():
 def get_encrypted_message(message, hashed_secret_key):
     cipher = AES.new(hashed_secret_key, AES.MODE_ECB)
     message = message.encode('utf-8')
-    padding = 16 - len(message) % 16
-    message += bytes([padding]) * padding
-    enc_message = base64.b64encode(cipher.encrypt(message))
+    padded_message = pad(message, BLOCK_SIZE)
+    enc_message = base64.b64encode(cipher.encrypt(padded_message))
     return enc_message.decode()
 
 def get_decrypted_message(enc_message, hashed_secret_key):
     try:
         cipher = AES.new(hashed_secret_key, AES.MODE_ECB)
         enc_message = base64.b64decode(enc_message.encode('utf-8'))
-        message = cipher.decrypt(enc_message)
-        padding = message[-1]
-        if padding > 16:
-            raise ValueError("Invalid padding value")
-        message = message[:-padding]
-        return message.decode().rstrip("\0")
+        decrypted_message = cipher.decrypt(enc_message)
+        unpadded_message = unpad(decrypted_message, BLOCK_SIZE)
+        return unpadded_message.decode()
     except Exception as e:
         print(f"Error decrypting message: {e}")
         return None
