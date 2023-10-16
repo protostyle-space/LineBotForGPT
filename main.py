@@ -453,6 +453,10 @@ def get_encrypted_message(message, hashed_secret_key):
     return enc_message.decode()
 
 def get_decrypted_message(enc_message, hashed_secret_key):
+    if not enc_message or len(enc_message) % AES.block_size != 0:  # Check if message is not empty and is a multiple of block size
+        print("Error: Invalid encrypted message.")
+        return None
+
     try:
         cipher = AES.new(hashed_secret_key, AES.MODE_ECB)
         enc_message = base64.b64decode(enc_message.encode('utf-8'))
