@@ -447,20 +447,29 @@ def systemRole():
     return { "role": "system", "content": SYSTEM_PROMPT }
 
 def get_encrypted_message(message, hashed_secret_key):
+    if len(hashed_secret_key) not in [16, 24, 32]:
+        print("Error: Invalid secret key length.")
+        return None
+
     cipher = AES.new(hashed_secret_key, AES.MODE_ECB)
-    padded_message = pad(message.encode('utf-8'), AES.block_size)  # AES.block_size is typically 16
+    padded_message = pad(message.encode('utf-8'), AES.block_size)
     enc_message = base64.b64encode(cipher.encrypt(padded_message))
     return enc_message.decode()
 
 def get_decrypted_message(enc_message, hashed_secret_key):
-    if not enc_message or len(enc_message) % AES.block_size != 0:  # Check if message is not empty and is a multiple of block size
-        print("Error: Invalid encrypted message.")
+    if not enc_message:
+        print("Error: Encrypted message is empty.")
         return None
 
     try:
+        enc_message_bytes = base64.b64decode(enc_message.encode('utf-8'))
+        
+        if len(enc_message_bytes) % AES.block_size != 0:
+            print("Error: Invalid encrypted message length.")
+            return None
+
         cipher = AES.new(hashed_secret_key, AES.MODE_ECB)
-        enc_message = base64.b64decode(enc_message.encode('utf-8'))
-        decrypted_msg = unpad(cipher.decrypt(enc_message), AES.block_size)
+        decrypted_msg = unpad(cipher.decrypt(enc_message_bytes), AES.block_size)
         return decrypted_msg.decode()
     except Exception as e:
         print(f"Error decrypting message: {e}")
