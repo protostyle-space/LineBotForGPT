@@ -457,6 +457,10 @@ def get_encrypted_message(message, hashed_secret_key):
     return enc_message.decode()
 
 def get_decrypted_message(enc_message, hashed_secret_key):
+    if len(hashed_secret_key) not in [16, 24, 32]:
+        print("Error: Invalid secret key length.")
+        return None
+
     if not enc_message:
         print("Error: Encrypted message is empty.")
         return None
@@ -465,7 +469,7 @@ def get_decrypted_message(enc_message, hashed_secret_key):
         enc_message_bytes = base64.b64decode(enc_message.encode('utf-8'))
         
         if len(enc_message_bytes) % AES.block_size != 0:
-            print("Error: Invalid encrypted message length.")
+            print(f"Error: Invalid encrypted message length ({len(enc_message_bytes)} bytes).")
             return None
 
         cipher = AES.new(hashed_secret_key, AES.MODE_ECB)
