@@ -5,7 +5,6 @@ from hashlib import md5
 import base64
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
-from Crypto.Util.Padding import pad, unpad
 import requests
 import pytz
 from flask import Flask, request, render_template, session, redirect, url_for, jsonify, abort
@@ -22,7 +21,6 @@ from whisper import get_audio, speech_to_text
 from voice import convert_audio_to_m4a, text_to_speech, send_audio_to_line, delete_local_file, set_bucket_lifecycle, send_audio_to_line_reply
 from payment import create_checkout_session
 from quickreply import create_quick_reply
-
 
 REQUIRED_ENV_VARS = [
     "BOT_NAME",
@@ -447,34 +445,23 @@ def systemRole():
     return { "role": "system", "content": SYSTEM_PROMPT }
 
 def get_encrypted_message(message, hashed_secret_key):
-    if len(hashed_secret_key) not in [16, 24, 32]:
-        print("Error: Invalid secret key length.")
-        return None
-
     cipher = AES.new(hashed_secret_key, AES.MODE_ECB)
-    padded_message = pad(message.encode('utf-8'), AES.block_size)
-    enc_message = base64.b64encode(cipher.encrypt(padded_message))
+    message = message.encode('utf-8')
+    padding = 16 - len(message) % 16
+    message += bytes([padding]) * padding
+    enc_message = base64.b64encode(cipher.encrypt(message))
     return enc_message.decode()
 
 def get_decrypted_message(enc_message, hashed_secret_key):
-    if len(hashed_secret_key) not in [16, 24, 32]:
-        print("Error: Invalid secret key length.")
-        return None
-
-    if not enc_message:
-        print("Error: Encrypted message is empty.")
-        return None
-
     try:
-        enc_message_bytes = base64.b64decode(enc_message.encode('utf-8'))
-        
-        if len(enc_message_bytes) % AES.block_size != 0:
-            print(f"Error: Invalid encrypted message length ({len(enc_message_bytes)} bytes).")
-            return None
-
         cipher = AES.new(hashed_secret_key, AES.MODE_ECB)
-        decrypted_msg = unpad(cipher.decrypt(enc_message_bytes), AES.block_size)
-        return decrypted_msg.decode()
+        enc_message = base64.b64decode(enc_message.encode('utf-8'))
+        message = cipher.decrypt(enc_message)
+        padding = message[-1]
+        if padding > 16:
+            raise ValueError("Invalid padding value")
+        message = message[:-padding]
+        return message.decode().rstrip("\0")
     except Exception as e:
         print(f"Error decrypting message: {e}")
         return None
